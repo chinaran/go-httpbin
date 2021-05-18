@@ -91,8 +91,12 @@ func writeJSON(w http.ResponseWriter, body []byte, status int) {
 }
 
 func writeIndentJSON(w http.ResponseWriter, v interface{}, status int) {
-	body, _ := json.MarshalIndent(v, "", "    ")
-	writeResponse(w, status, jsonContentType, body)
+	bf := bytes.NewBuffer([]byte{})
+	enc := json.NewEncoder(bf)
+	enc.SetIndent("", "    ")
+	enc.SetEscapeHTML(false)
+	enc.Encode(v)
+	writeResponse(w, status, jsonContentType, bf.Bytes())
 }
 
 func writeHTML(w http.ResponseWriter, body []byte, status int) {
