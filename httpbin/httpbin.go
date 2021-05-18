@@ -132,6 +132,9 @@ func (h *HTTPBin) Handler() http.Handler {
 	mux.HandleFunc("/patch", methods(h.RequestWithBody, "PATCH"))
 	mux.HandleFunc("/delete", methods(h.RequestWithBody, "DELETE"))
 
+	mux.HandleFunc("/anything", h.RequestWithBody)
+	mux.HandleFunc("/anything/", h.RequestWithBody)
+
 	mux.HandleFunc("/ip", h.IP)
 	mux.HandleFunc("/user-agent", h.UserAgent)
 	mux.HandleFunc("/headers", h.Headers)
