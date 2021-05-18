@@ -51,7 +51,7 @@ func (h *HTTPBin) UTF8(w http.ResponseWriter, r *http.Request) {
 func (h *HTTPBin) Get(w http.ResponseWriter, r *http.Request) {
 	resp := &getResponse{
 		Envs:    getEnvs(r),
-		Args:    r.URL.Query(),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),
@@ -63,7 +63,7 @@ func (h *HTTPBin) Get(w http.ResponseWriter, r *http.Request) {
 func (h *HTTPBin) RequestWithBody(w http.ResponseWriter, r *http.Request) {
 	resp := &bodyResponse{
 		Envs:    getEnvs(r),
-		Args:    r.URL.Query(),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),
@@ -500,7 +500,7 @@ func (h *HTTPBin) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &streamResponse{
-		Args:    r.URL.Query(),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),
@@ -714,7 +714,7 @@ func (h *HTTPBin) ETag(w http.ResponseWriter, r *http.Request) {
 	// TODO: This mostly duplicates the work of Get() above, should this be
 	// pulled into a little helper?
 	resp := &getResponse{
-		Args:    r.URL.Query(),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),

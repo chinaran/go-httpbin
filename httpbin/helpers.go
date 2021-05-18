@@ -41,6 +41,14 @@ func getRequestHeaders(r *http.Request) http.Header {
 	return h
 }
 
+func getRequestQuery(r *http.Request) map[string]string {
+	m := make(map[string]string)
+	for name, values := range r.URL.Query() {
+		m[name] = strings.Join(values, ",")
+	}
+	return m
+}
+
 func getOrigin(r *http.Request) string {
 	origin := r.Header.Get("X-Forwarded-For")
 	if origin == "" {
