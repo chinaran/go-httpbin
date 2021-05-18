@@ -2,6 +2,8 @@ package httpbin
 
 import (
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -13,6 +15,16 @@ const (
 
 const jsonContentType = "application/json; encoding=utf-8"
 const htmlContentType = "text/html; charset=utf-8"
+
+type RequestArgs map[string]string
+
+func (r RequestArgs) Encode() string {
+	m := make(url.Values)
+	for k, v := range r {
+		m[k] = strings.Split(v, ",")
+	}
+	return m.Encode()
+}
 
 type headersResponse struct {
 	Headers http.Header `json:"headers"`
@@ -28,7 +40,7 @@ type userAgentResponse struct {
 
 type getResponse struct {
 	Envs    map[string]string `json:"envs"`
-	Args    map[string]string `json:"args"`
+	Args    RequestArgs       `json:"args"`
 	Headers http.Header       `json:"headers"`
 	Origin  string            `json:"origin"`
 	URL     string            `json:"url"`
@@ -37,7 +49,7 @@ type getResponse struct {
 // A generic response for any incoming request that might contain a body
 type bodyResponse struct {
 	Envs    map[string]string `json:"envs"`
-	Args    map[string]string `json:"args"`
+	Args    RequestArgs       `json:"args"`
 	Headers http.Header       `json:"headers"`
 	Origin  string            `json:"origin"`
 	URL     string            `json:"url"`
@@ -70,11 +82,11 @@ type deflateResponse struct {
 // An actual stream response body will be made up of one or more of these
 // structs, encoded as JSON and separated by newlines
 type streamResponse struct {
-	ID      int               `json:"id"`
-	Args    map[string]string `json:"args"`
-	Headers http.Header       `json:"headers"`
-	Origin  string            `json:"origin"`
-	URL     string            `json:"url"`
+	ID      int         `json:"id"`
+	Args    RequestArgs `json:"args"`
+	Headers http.Header `json:"headers"`
+	Origin  string      `json:"origin"`
+	URL     string      `json:"url"`
 }
 
 type uuidResponse struct {
