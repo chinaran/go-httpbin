@@ -28,18 +28,20 @@ type userAgentResponse struct {
 }
 
 type getResponse struct {
-	Args    url.Values  `json:"args"`
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	URL     string      `json:"url"`
+	Envs    map[string]string `json:"envs"`
+	Args    url.Values        `json:"args"`
+	Headers http.Header       `json:"headers"`
+	Origin  string            `json:"origin"`
+	URL     string            `json:"url"`
 }
 
 // A generic response for any incoming request that might contain a body
 type bodyResponse struct {
-	Args    url.Values  `json:"args"`
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	URL     string      `json:"url"`
+	Envs    map[string]string `json:"envs"`
+	Args    url.Values        `json:"args"`
+	Headers http.Header       `json:"headers"`
+	Origin  string            `json:"origin"`
+	URL     string            `json:"url"`
 
 	Data  string              `json:"data"`
 	Files map[string][]string `json:"files"`
@@ -206,6 +208,7 @@ func (h *HTTPBin) Handler() http.Handler {
 	handler = limitRequestSize(h.MaxBodySize, handler)
 	handler = preflight(handler)
 	handler = autohead(handler)
+	handler = requestDelay(time.Millisecond*10, handler)
 	if h.Observer != nil {
 		handler = observe(h.Observer, handler)
 	}

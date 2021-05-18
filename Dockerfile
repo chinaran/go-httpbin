@@ -1,5 +1,7 @@
 # syntax = docker/dockerfile:1-experimental
-FROM golang:1.16
+FROM golang:1.16 AS builder
+
+ENV GOPROXY https://goproxy.cn,direct
 
 WORKDIR /go/src/github.com/mccutchen/go-httpbin
 
@@ -10,7 +12,15 @@ COPY . .
 RUN --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
     make build buildtests
 
-FROM gcr.io/distroless/base
-COPY --from=0 /go/src/github.com/mccutchen/go-httpbin/dist/go-httpbin* /bin/
+FROM alpine:3.13.5
+
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
+    && apk --no-cache --update add curl tzdata
+
+ENV TZ Asia/Shanghai
+
+COPY --from=builder /go/src/github.com/mccutchen/go-httpbin/dist/go-httpbin* /bin/
+
 EXPOSE 8080
+
 CMD ["/bin/go-httpbin"]

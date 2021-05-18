@@ -12,11 +12,20 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+var k8sEnvs = []string{
+	"HOSTNAME",
+	"POD_NAME",
+	"POD_NAMESPACE",
+}
+
+const envsQueryName = "envs"
 
 // Base64MaxLen - Maximum input length for Base64 functions
 const Base64MaxLen = 2000
@@ -78,6 +87,11 @@ func writeResponse(w http.ResponseWriter, status int, contentType string, body [
 }
 
 func writeJSON(w http.ResponseWriter, body []byte, status int) {
+	writeResponse(w, status, jsonContentType, body)
+}
+
+func writeIndentJSON(w http.ResponseWriter, v interface{}, status int) {
+	body, _ := json.MarshalIndent(v, "", "    ")
 	writeResponse(w, status, jsonContentType, body)
 }
 
@@ -321,4 +335,24 @@ func (b *base64Helper) Decode() ([]byte, error) {
 	buff := make([]byte, base64.StdEncoding.DecodedLen(len(b.data)))
 	_, err := base64.StdEncoding.Decode(buff, []byte(b.data))
 	return buff, err
+}
+
+func getEnvs(r *http.Request) map[string]string {
+	m := make(map[string]string)
+	// k8s debug env
+	for _, env := range k8sEnvs {
+		v := os.Getenv(env)
+		if v != "" {
+			m[env] = v
+		}
+	}
+	// user defind env from query
+	envs := r.URL.Query().Get(envsQueryName)
+	if envs != "" {
+		ss := strings.Split(envs, ",")
+		for _, env := range ss {
+			m[env] = os.Getenv(env)
+		}
+	}
+	return m
 }
