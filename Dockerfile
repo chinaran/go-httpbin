@@ -5,12 +5,15 @@ ENV GOPROXY https://goproxy.cn,direct
 
 WORKDIR /go/src/github.com/mccutchen/go-httpbin
 
+RUN apt update && apt install -y upx
+
 # Manually implement the subset of `make deps` we need to build the image
 RUN cd /tmp && go get -u github.com/kevinburke/go-bindata/...
 
 COPY . .
 RUN --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
     make build buildtests
+RUN upx dist/go-httpbin
 
 FROM alpine:3.13.5
 
