@@ -35,18 +35,22 @@ const Base64MaxLen = 2000
 //
 // This is necessary to ensure that the incoming Host header is included,
 // because golang only exposes that header on the http.Request struct itself.
-func getRequestHeaders(r *http.Request) http.Header {
+func getRequestHeaders(r *http.Request) RequestHeaders {
 	h := r.Header
 	h.Set("Host", r.Host)
-	return h
+	return mapSliceToMap(h)
 }
 
-func getRequestQuery(r *http.Request) map[string]string {
+func mapSliceToMap(ms map[string][]string) map[string]string {
 	m := make(map[string]string)
-	for name, values := range r.URL.Query() {
+	for name, values := range ms {
 		m[name] = strings.Join(values, ",")
 	}
 	return m
+}
+
+func getRequestQuery(r *http.Request) map[string]string {
+	return mapSliceToMap(r.URL.Query())
 }
 
 func getOrigin(r *http.Request) string {

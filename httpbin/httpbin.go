@@ -26,8 +26,17 @@ func (r RequestArgs) Encode() string {
 	return m.Encode()
 }
 
+type RequestHeaders map[string]string
+
+func (r RequestHeaders) Get(key string) string {
+	if v, ok := r[key]; ok {
+		return strings.Split(v, ",")[0]
+	}
+	return ""
+}
+
 type headersResponse struct {
-	Headers http.Header `json:"headers"`
+	Headers RequestHeaders `json:"headers"`
 }
 
 type ipResponse struct {
@@ -41,7 +50,7 @@ type userAgentResponse struct {
 type getResponse struct {
 	Envs    map[string]string `json:"envs"`
 	Args    RequestArgs       `json:"args"`
-	Headers http.Header       `json:"headers"`
+	Headers RequestHeaders    `json:"headers"`
 	Origin  string            `json:"origin"`
 	URL     string            `json:"url"`
 }
@@ -50,7 +59,7 @@ type getResponse struct {
 type bodyResponse struct {
 	Envs    map[string]string `json:"envs"`
 	Args    RequestArgs       `json:"args"`
-	Headers http.Header       `json:"headers"`
+	Headers RequestHeaders    `json:"headers"`
 	Origin  string            `json:"origin"`
 	URL     string            `json:"url"`
 
@@ -68,25 +77,25 @@ type authResponse struct {
 }
 
 type gzipResponse struct {
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	Gzipped bool        `json:"gzipped"`
+	Headers RequestHeaders `json:"headers"`
+	Origin  string         `json:"origin"`
+	Gzipped bool           `json:"gzipped"`
 }
 
 type deflateResponse struct {
-	Headers  http.Header `json:"headers"`
-	Origin   string      `json:"origin"`
-	Deflated bool        `json:"deflated"`
+	Headers  RequestHeaders `json:"headers"`
+	Origin   string         `json:"origin"`
+	Deflated bool           `json:"deflated"`
 }
 
 // An actual stream response body will be made up of one or more of these
 // structs, encoded as JSON and separated by newlines
 type streamResponse struct {
-	ID      int         `json:"id"`
-	Args    RequestArgs `json:"args"`
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	URL     string      `json:"url"`
+	ID      int            `json:"id"`
+	Args    RequestArgs    `json:"args"`
+	Headers RequestHeaders `json:"headers"`
+	Origin  string         `json:"origin"`
+	URL     string         `json:"url"`
 }
 
 type uuidResponse struct {

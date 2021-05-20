@@ -355,18 +355,19 @@ func TestHeaders(t *testing.T) {
 
 	// Host header requires special treatment, because its an attribute of the
 	// http.Request struct itself, not part of its headers map
-	host := resp.Headers[http.CanonicalHeaderKey("Host")]
-	if host == nil || host[0] != "test-host" {
+	host := resp.Headers.Get(http.CanonicalHeaderKey("Host"))
+	if host != "test-host" {
 		t.Fatalf("expected Host header \"test-host\", got %#v", host)
 	}
 
 	for k, expectedValues := range r.Header {
-		values, ok := resp.Headers[http.CanonicalHeaderKey(k)]
+		value, ok := resp.Headers[http.CanonicalHeaderKey(k)]
 		if !ok {
 			t.Fatalf("expected header %#v in response", k)
 		}
-		if !reflect.DeepEqual(expectedValues, values) {
-			t.Fatalf("header %s value mismatch: %#v != %#v", k, values, expectedValues)
+		headerStr := strings.Join(expectedValues, ",")
+		if !reflect.DeepEqual(headerStr, value) {
+			t.Fatalf("header %s value mismatch: %#v != %#v", k, value, headerStr)
 		}
 	}
 }
