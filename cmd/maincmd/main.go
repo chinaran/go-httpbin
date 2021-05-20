@@ -25,6 +25,7 @@ var (
 	logPrefix     string
 	maxBodySize   int64
 	maxDuration   time.Duration
+	responseDelay time.Duration
 	httpsCertFile string
 	httpsKeyFile  string
 )
@@ -38,6 +39,7 @@ func Main() {
 	flag.StringVar(&httpsKeyFile, "https-key-file", "", "HTTPS Server private key file")
 	flag.Int64Var(&maxBodySize, "max-body-size", httpbin.DefaultMaxBodySize, "Maximum size of request or response, in bytes")
 	flag.DurationVar(&maxDuration, "max-duration", httpbin.DefaultMaxDuration, "Maximum duration a response may take")
+	flag.DurationVar(&responseDelay, "response-delay", httpbin.DefaultResponseDelay, "duration a response may take")
 	flag.Parse()
 
 	// Command line flags take precedence over environment vars, so we only
@@ -56,6 +58,14 @@ func Main() {
 		maxDuration, err = time.ParseDuration(os.Getenv("MAX_DURATION"))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: invalid value %#v for env var MAX_DURATION: %s\n\n", os.Getenv("MAX_DURATION"), err)
+			flag.Usage()
+			os.Exit(1)
+		}
+	}
+	if responseDelay == httpbin.DefaultResponseDelay && os.Getenv("RESPONSE_DELAY") != "" {
+		responseDelay, err = time.ParseDuration(os.Getenv("RESPONSE_DELAY"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid value %#v for env var RESPONSE_DELAY: %s\n\n", os.Getenv("RESPONSE_DELAY"), err)
 			flag.Usage()
 			os.Exit(1)
 		}
@@ -105,6 +115,7 @@ func Main() {
 	h := httpbin.New(
 		httpbin.WithMaxBodySize(maxBodySize),
 		httpbin.WithMaxDuration(maxDuration),
+		httpbin.WithResponseDelay(responseDelay),
 		httpbin.WithObserver(httpbin.StdLogObserver(logger, logPrefix)),
 	)
 

@@ -9,8 +9,9 @@ import (
 
 // Default configuration values
 const (
-	DefaultMaxBodySize int64 = 1024 * 1024
-	DefaultMaxDuration       = 10 * time.Second
+	DefaultMaxBodySize   int64 = 1024 * 1024
+	DefaultMaxDuration         = 10 * time.Second
+	DefaultResponseDelay       = 10 * time.Millisecond
 )
 
 const jsonContentType = "application/json; encoding=utf-8"
@@ -121,6 +122,9 @@ type HTTPBin struct {
 
 	// Default parameter values
 	DefaultParams DefaultParams
+
+	// Delay for api reuest, except /delay/ and /drip
+	ResponseDelay time.Duration
 }
 
 // DefaultParams defines default parameter values
@@ -231,7 +235,9 @@ func (h *HTTPBin) Handler() http.Handler {
 	handler = limitRequestSize(h.MaxBodySize, handler)
 	handler = preflight(handler)
 	handler = autohead(handler)
-	handler = requestDelay(time.Millisecond*10, handler)
+	if h.ResponseDelay > 0 {
+		handler = responseDelay(h.ResponseDelay, handler)
+	}
 	if h.Observer != nil {
 		handler = observe(h.Observer, handler)
 	}
@@ -244,6 +250,7 @@ func New(opts ...OptionFunc) *HTTPBin {
 	h := &HTTPBin{
 		MaxBodySize:   DefaultMaxBodySize,
 		MaxDuration:   DefaultMaxDuration,
+		ResponseDelay: DefaultResponseDelay,
 		DefaultParams: DefaultDefaultParams,
 	}
 	for _, opt := range opts {
@@ -281,5 +288,12 @@ func WithMaxDuration(d time.Duration) OptionFunc {
 func WithObserver(o Observer) OptionFunc {
 	return func(h *HTTPBin) {
 		h.Observer = o
+	}
+}
+
+// WithResponseDelay sets the delay time that httbpin delay to respond
+func WithResponseDelay(d time.Duration) OptionFunc {
+	return func(h *HTTPBin) {
+		h.ResponseDelay = d
 	}
 }

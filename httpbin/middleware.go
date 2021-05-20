@@ -171,8 +171,8 @@ func StdLogObserver(l *log.Logger, prefix ...string) Observer {
 	}
 }
 
-// golang server is efficient, so delay request for observability
-func requestDelay(delay time.Duration, h http.Handler) http.Handler {
+// golang server is efficient, so delay response for observability
+func responseDelay(delay time.Duration, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/drip" && !strings.HasPrefix(r.URL.Path, "/delay/") {
 			time.Sleep(delay)
