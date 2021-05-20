@@ -148,14 +148,19 @@ type Observer func(result Result)
 
 // StdLogObserver creates an Observer that will log each request in structured
 // format using the given stdlib logger
-func StdLogObserver(l *log.Logger) Observer {
+func StdLogObserver(l *log.Logger, prefix ...string) Observer {
 	const (
-		logFmt  = "time=%q\t status=%d  method=%q  uri=%q  size_bytes=%d  duration_ms=%0.02f"
+		logFmt  = `%stime="%-24s"  status=%d  method=%q  uri=%q  size_bytes=%d  duration_ms=%0.02f`
 		dateFmt = "2006-01-02 15:04:05.9999"
 	)
+	p := ""
+	if len(prefix) > 0 {
+		p = prefix[0]
+	}
 	return func(result Result) {
 		l.Printf(
 			logFmt,
+			p,
 			time.Now().Format(dateFmt),
 			result.Status,
 			result.Method,

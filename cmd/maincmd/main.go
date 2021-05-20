@@ -22,6 +22,7 @@ const defaultPort = 8080
 var (
 	host          string
 	port          int
+	logPrefix     string
 	maxBodySize   int64
 	maxDuration   time.Duration
 	httpsCertFile string
@@ -32,6 +33,7 @@ var (
 func Main() {
 	flag.StringVar(&host, "host", defaultHost, "Host to listen on")
 	flag.IntVar(&port, "port", defaultPort, "Port to listen on")
+	flag.StringVar(&logPrefix, "log-prefix", "", "Request log prefix")
 	flag.StringVar(&httpsCertFile, "https-cert-file", "", "HTTPS Server certificate file")
 	flag.StringVar(&httpsKeyFile, "https-key-file", "", "HTTPS Server private key file")
 	flag.Int64Var(&maxBodySize, "max-body-size", httpbin.DefaultMaxBodySize, "Maximum size of request or response, in bytes")
@@ -95,7 +97,7 @@ func Main() {
 	serverLog := func(msg string, args ...interface{}) {
 		const (
 			logFmt  = "time=%q msg=%q"
-			dateFmt = "2006-01-02T15:04:05.9999"
+			dateFmt = "2006-01-02 15:04:05.9999"
 		)
 		logger.Printf(logFmt, time.Now().Format(dateFmt), fmt.Sprintf(msg, args...))
 	}
@@ -103,7 +105,7 @@ func Main() {
 	h := httpbin.New(
 		httpbin.WithMaxBodySize(maxBodySize),
 		httpbin.WithMaxDuration(maxDuration),
-		httpbin.WithObserver(httpbin.StdLogObserver(logger)),
+		httpbin.WithObserver(httpbin.StdLogObserver(logger, logPrefix)),
 	)
 
 	listenAddr := net.JoinHostPort(host, strconv.Itoa(port))
