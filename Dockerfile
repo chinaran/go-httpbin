@@ -26,4 +26,4 @@ COPY --from=builder /go/src/github.com/mccutchen/go-httpbin/dist/go-httpbin* /bi
 
 EXPOSE 8080
 
-CMD ["/bin/go-httpbin"]
+CMD /bin/go-httpbin -response-delay 10ms
