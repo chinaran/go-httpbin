@@ -24,6 +24,6 @@ ENV TZ Asia/Shanghai
 
 COPY --from=builder /go/src/github.com/mccutchen/go-httpbin/dist/go-httpbin* /bin/
 
-EXPOSE 8080
+EXPOSE 80
 
-CMD /bin/go-httpbin -response-delay 10ms
+CMD /bin/go-httpbin -port 80 -response-delay 10ms
