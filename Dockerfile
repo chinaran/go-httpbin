@@ -3,7 +3,7 @@ FROM golang:1.16 AS builder
 
 ENV GOPROXY https://goproxy.cn,direct
 
-WORKDIR /go/src/github.com/mccutchen/go-httpbin
+WORKDIR /go/src/github.com/chinaran/go-httpbin
 
 RUN apt update && apt install -y upx
 
@@ -22,7 +22,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 ENV TZ Asia/Shanghai
 
-COPY --from=builder /go/src/github.com/mccutchen/go-httpbin/dist/go-httpbin* /bin/
+COPY --from=builder /go/src/github.com/chinaran/go-httpbin/dist/go-httpbin* /bin/
 
 EXPOSE 80
 
