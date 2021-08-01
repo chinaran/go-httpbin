@@ -7,6 +7,12 @@ A reasonably complete and well-tested golang port of [Kenneth Reitz][kr]'s
 [![Build Status](https://travis-ci.org/mccutchen/go-httpbin.svg?branch=master)](http://travis-ci.org/mccutchen/go-httpbin)
 [![Coverage](https://codecov.io/gh/mccutchen/go-httpbin/branch/master/graph/badge.svg)](https://codecov.io/gh/mccutchen/go-httpbin)
 
+## My Change Log
+
+* add -response-delay args (more observability, except /delay/{time} api)
+* pretty response json (more like httpbin)
+* add query param envs (identify httpbin instance, default show HOSTNAME for k8s. eg: curl http://localhost:8080/get?envs=ENV1,ENV2)
+* add anything api (show anything request and response)
 
 ## Usage
 
@@ -17,17 +23,21 @@ variables:
 $ go-httpbin --help
 Usage of go-httpbin:
   -host string
-      Host to listen on (default "0.0.0.0")
+    	Host to listen on (default "0.0.0.0")
   -https-cert-file string
-      HTTPS Server certificate file
+    	HTTPS Server certificate file
   -https-key-file string
-      HTTPS Server private key file
+    	HTTPS Server private key file
+  -log-prefix string
+    	Request log prefix
   -max-body-size int
-      Maximum size of request or response, in bytes (default 1048576)
+    	Maximum size of request or response, in bytes (default 1048576)
   -max-duration duration
-      Maximum duration a response may take (default 10s)
+    	Maximum duration a response may take (default 10s)
   -port int
-      Port to listen on (default 8080)
+    	Port to listen on (default 8080)
+  -response-delay duration
+    	duration a response may take (default 10ms)
 ```
 
 Examples:
@@ -47,10 +57,10 @@ Docker images are published to [Docker Hub][docker-hub]:
 
 ```bash
 # Run http server
-$ docker run -P mccutchen/go-httpbin
+$ docker run -p 8080:80 ghcr.io/chinaran/go-httpbin:1.2-alpine3.13
 
 # Run https server
-$ docker run -e HTTPS_CERT_FILE='/tmp/server.crt' -e HTTPS_KEY_FILE='/tmp/server.key' -p 8080:8080 -v /tmp:/tmp mccutchen/go-httpbin
+$ docker run -e HTTPS_CERT_FILE='/tmp/server.crt' -e HTTPS_KEY_FILE='/tmp/server.key' -p 8080:8080 -v /tmp:/tmp ghcr.io/chinaran/go-httpbin:1.2-alpine3.13
 ```
 
 The `github.com/mccutchen/go-httpbin/httpbin/v2` package can also be used as a
