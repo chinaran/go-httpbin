@@ -17,8 +17,10 @@ const (
 const jsonContentType = "application/json; encoding=utf-8"
 const htmlContentType = "text/html; charset=utf-8"
 
+// RequestArgs request args using map
 type RequestArgs map[string]string
 
+// Encode encode RequestArgs
 func (r RequestArgs) Encode() string {
 	m := make(url.Values)
 	for k, v := range r {
@@ -27,8 +29,10 @@ func (r RequestArgs) Encode() string {
 	return m.Encode()
 }
 
+// RequestHeaders Request Headers using map
 type RequestHeaders map[string]string
 
+// Get RequestHeaders string
 func (r RequestHeaders) Get(key string) string {
 	if v, ok := r[key]; ok {
 		return strings.Split(v, ",")[0]
