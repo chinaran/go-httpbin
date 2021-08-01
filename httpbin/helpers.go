@@ -54,11 +54,12 @@ func getRequestQuery(r *http.Request) map[string]string {
 }
 
 func getOrigin(r *http.Request) string {
-	origin := r.Header.Get("X-Forwarded-For")
-	if origin == "" {
-		origin = r.RemoteAddr
+	forwardedFor := r.Header.Get("X-Forwarded-For")
+	if forwardedFor == "" {
+		return r.RemoteAddr
 	}
-	return origin
+	// take the first entry in a comma-separated list of IP addrs
+	return strings.TrimSpace(strings.SplitN(forwardedFor, ",", 2)[0])
 }
 
 func getURL(r *http.Request) *url.URL {
