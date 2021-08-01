@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -147,14 +148,19 @@ type Observer func(result Result)
 
 // StdLogObserver creates an Observer that will log each request in structured
 // format using the given stdlib logger
-func StdLogObserver(l *log.Logger) Observer {
+func StdLogObserver(l *log.Logger, prefix ...string) Observer {
 	const (
-		logFmt  = "time=%q status=%d method=%q uri=%q size_bytes=%d duration_ms=%0.02f"
-		dateFmt = "2006-01-02T15:04:05.9999"
+		logFmt  = `%stime="%-24s"  status=%d  method=%q  uri=%q  size_bytes=%d  duration_ms=%0.02f`
+		dateFmt = "2006-01-02 15:04:05.9999"
 	)
+	p := ""
+	if len(prefix) > 0 {
+		p = prefix[0]
+	}
 	return func(result Result) {
 		l.Printf(
 			logFmt,
+			p,
 			time.Now().Format(dateFmt),
 			result.Status,
 			result.Method,
@@ -163,4 +169,14 @@ func StdLogObserver(l *log.Logger) Observer {
 			result.Duration.Seconds()*1e3, // https://github.com/golang/go/issues/5491#issuecomment-66079585
 		)
 	}
+}
+
+// golang server is efficient, so delay response for observability
+func responseDelay(delay time.Duration, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/drip" && !strings.HasPrefix(r.URL.Path, "/delay/") {
+			time.Sleep(delay)
+		}
+		h.ServeHTTP(w, r)
+	})
 }

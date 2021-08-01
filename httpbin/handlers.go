@@ -50,19 +50,20 @@ func (h *HTTPBin) UTF8(w http.ResponseWriter, r *http.Request) {
 // Get handles HTTP GET requests
 func (h *HTTPBin) Get(w http.ResponseWriter, r *http.Request) {
 	resp := &getResponse{
-		Args:    r.URL.Query(),
+		Envs:    getEnvs(r),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),
 	}
-	body, _ := json.Marshal(resp)
-	writeJSON(w, body, http.StatusOK)
+	writeIndentJSON(w, resp, http.StatusOK)
 }
 
 // RequestWithBody handles POST, PUT, and PATCH requests
 func (h *HTTPBin) RequestWithBody(w http.ResponseWriter, r *http.Request) {
 	resp := &bodyResponse{
-		Args:    r.URL.Query(),
+		Envs:    getEnvs(r),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),
@@ -74,8 +75,7 @@ func (h *HTTPBin) RequestWithBody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, _ := json.Marshal(resp)
-	writeJSON(w, body, http.StatusOK)
+	writeIndentJSON(w, resp, http.StatusOK)
 }
 
 // Gzip returns a gzipped response
@@ -120,26 +120,26 @@ func (h *HTTPBin) Deflate(w http.ResponseWriter, r *http.Request) {
 
 // IP echoes the IP address of the incoming request
 func (h *HTTPBin) IP(w http.ResponseWriter, r *http.Request) {
-	body, _ := json.Marshal(&ipResponse{
+	resp := &ipResponse{
 		Origin: getOrigin(r),
-	})
-	writeJSON(w, body, http.StatusOK)
+	}
+	writeIndentJSON(w, resp, http.StatusOK)
 }
 
 // UserAgent echoes the incoming User-Agent header
 func (h *HTTPBin) UserAgent(w http.ResponseWriter, r *http.Request) {
-	body, _ := json.Marshal(&userAgentResponse{
+	resp := &userAgentResponse{
 		UserAgent: r.Header.Get("User-Agent"),
-	})
-	writeJSON(w, body, http.StatusOK)
+	}
+	writeIndentJSON(w, resp, http.StatusOK)
 }
 
 // Headers echoes the incoming request headers
 func (h *HTTPBin) Headers(w http.ResponseWriter, r *http.Request) {
-	body, _ := json.Marshal(&headersResponse{
+	resp := &headersResponse{
 		Headers: getRequestHeaders(r),
-	})
-	writeJSON(w, body, http.StatusOK)
+	}
+	writeIndentJSON(w, resp, http.StatusOK)
 }
 
 // Status responds with the specified status code. TODO: support random choice
@@ -393,8 +393,7 @@ func (h *HTTPBin) Cookies(w http.ResponseWriter, r *http.Request) {
 	for _, c := range r.Cookies() {
 		resp[c.Name] = c.Value
 	}
-	body, _ := json.Marshal(resp)
-	writeJSON(w, body, http.StatusOK)
+	writeIndentJSON(w, resp, http.StatusOK)
 }
 
 // SetCookies sets cookies as specified in query params and redirects to
@@ -448,11 +447,11 @@ func (h *HTTPBin) BasicAuth(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Fake Realm"`)
 	}
 
-	body, _ := json.Marshal(&authResponse{
+	resp := &authResponse{
 		Authorized: authorized,
 		User:       givenUser,
-	})
-	writeJSON(w, body, status)
+	}
+	writeIndentJSON(w, resp, status)
 }
 
 // HiddenBasicAuth requires HTTP Basic authentication but returns a status of
@@ -474,11 +473,11 @@ func (h *HTTPBin) HiddenBasicAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, _ := json.Marshal(&authResponse{
+	resp := &authResponse{
 		Authorized: authorized,
 		User:       givenUser,
-	})
-	writeJSON(w, body, http.StatusOK)
+	}
+	writeIndentJSON(w, resp, http.StatusOK)
 }
 
 // Stream responds with max(n, 100) lines of JSON-encoded request data.
@@ -501,7 +500,7 @@ func (h *HTTPBin) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &streamResponse{
-		Args:    r.URL.Query(),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),
@@ -715,7 +714,7 @@ func (h *HTTPBin) ETag(w http.ResponseWriter, r *http.Request) {
 	// TODO: This mostly duplicates the work of Get() above, should this be
 	// pulled into a little helper?
 	resp := &getResponse{
-		Args:    r.URL.Query(),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
 		Origin:  getOrigin(r),
 		URL:     getURL(r).String(),
@@ -999,9 +998,9 @@ func (h *HTTPBin) Bearer(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	body, _ := json.Marshal(&bearerResponse{
+	resp := &bearerResponse{
 		Authenticated: true,
 		Token:         tokenFields[1],
-	})
-	writeJSON(w, body, http.StatusOK)
+	}
+	writeIndentJSON(w, resp, http.StatusOK)
 }

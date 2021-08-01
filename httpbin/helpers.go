@@ -12,11 +12,20 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+var k8sEnvs = []string{
+	"HOSTNAME",
+	"POD_NAME",
+	"POD_NAMESPACE",
+}
+
+const envsQueryName = "envs"
 
 // Base64MaxLen - Maximum input length for Base64 functions
 const Base64MaxLen = 2000
@@ -26,10 +35,22 @@ const Base64MaxLen = 2000
 //
 // This is necessary to ensure that the incoming Host header is included,
 // because golang only exposes that header on the http.Request struct itself.
-func getRequestHeaders(r *http.Request) http.Header {
+func getRequestHeaders(r *http.Request) RequestHeaders {
 	h := r.Header
 	h.Set("Host", r.Host)
-	return h
+	return mapSliceToMap(h)
+}
+
+func mapSliceToMap(ms map[string][]string) map[string]string {
+	m := make(map[string]string)
+	for name, values := range ms {
+		m[name] = strings.Join(values, ",")
+	}
+	return m
+}
+
+func getRequestQuery(r *http.Request) map[string]string {
+	return mapSliceToMap(r.URL.Query())
 }
 
 func getOrigin(r *http.Request) string {
@@ -79,6 +100,15 @@ func writeResponse(w http.ResponseWriter, status int, contentType string, body [
 
 func writeJSON(w http.ResponseWriter, body []byte, status int) {
 	writeResponse(w, status, jsonContentType, body)
+}
+
+func writeIndentJSON(w http.ResponseWriter, v interface{}, status int) {
+	bf := bytes.NewBuffer([]byte{})
+	enc := json.NewEncoder(bf)
+	enc.SetIndent("", "    ")
+	enc.SetEscapeHTML(false)
+	enc.Encode(v)
+	writeResponse(w, status, jsonContentType, bf.Bytes())
 }
 
 func writeHTML(w http.ResponseWriter, body []byte, status int) {
@@ -321,4 +351,24 @@ func (b *base64Helper) Decode() ([]byte, error) {
 	buff := make([]byte, base64.StdEncoding.DecodedLen(len(b.data)))
 	_, err := base64.StdEncoding.Decode(buff, []byte(b.data))
 	return buff, err
+}
+
+func getEnvs(r *http.Request) map[string]string {
+	m := make(map[string]string)
+	// k8s debug env
+	for _, env := range k8sEnvs {
+		v := os.Getenv(env)
+		if v != "" {
+			m[env] = v
+		}
+	}
+	// user defind env from query
+	envs := r.URL.Query().Get(envsQueryName)
+	if envs != "" {
+		ss := strings.Split(envs, ",")
+		for _, env := range ss {
+			m[env] = os.Getenv(env)
+		}
+	}
+	return m
 }

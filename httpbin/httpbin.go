@@ -3,20 +3,41 @@ package httpbin
 import (
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
 // Default configuration values
 const (
-	DefaultMaxBodySize int64 = 1024 * 1024
-	DefaultMaxDuration       = 10 * time.Second
+	DefaultMaxBodySize   int64 = 1024 * 1024
+	DefaultMaxDuration         = 10 * time.Second
+	DefaultResponseDelay       = 10 * time.Millisecond
 )
 
 const jsonContentType = "application/json; encoding=utf-8"
 const htmlContentType = "text/html; charset=utf-8"
 
+type RequestArgs map[string]string
+
+func (r RequestArgs) Encode() string {
+	m := make(url.Values)
+	for k, v := range r {
+		m[k] = strings.Split(v, ",")
+	}
+	return m.Encode()
+}
+
+type RequestHeaders map[string]string
+
+func (r RequestHeaders) Get(key string) string {
+	if v, ok := r[key]; ok {
+		return strings.Split(v, ",")[0]
+	}
+	return ""
+}
+
 type headersResponse struct {
-	Headers http.Header `json:"headers"`
+	Headers RequestHeaders `json:"headers"`
 }
 
 type ipResponse struct {
@@ -28,18 +49,20 @@ type userAgentResponse struct {
 }
 
 type getResponse struct {
-	Args    url.Values  `json:"args"`
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	URL     string      `json:"url"`
+	Envs    map[string]string `json:"envs"`
+	Args    RequestArgs       `json:"args"`
+	Headers RequestHeaders    `json:"headers"`
+	Origin  string            `json:"origin"`
+	URL     string            `json:"url"`
 }
 
 // A generic response for any incoming request that might contain a body
 type bodyResponse struct {
-	Args    url.Values  `json:"args"`
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	URL     string      `json:"url"`
+	Envs    map[string]string `json:"envs"`
+	Args    RequestArgs       `json:"args"`
+	Headers RequestHeaders    `json:"headers"`
+	Origin  string            `json:"origin"`
+	URL     string            `json:"url"`
 
 	Data  string              `json:"data"`
 	Files map[string][]string `json:"files"`
@@ -55,25 +78,25 @@ type authResponse struct {
 }
 
 type gzipResponse struct {
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	Gzipped bool        `json:"gzipped"`
+	Headers RequestHeaders `json:"headers"`
+	Origin  string         `json:"origin"`
+	Gzipped bool           `json:"gzipped"`
 }
 
 type deflateResponse struct {
-	Headers  http.Header `json:"headers"`
-	Origin   string      `json:"origin"`
-	Deflated bool        `json:"deflated"`
+	Headers  RequestHeaders `json:"headers"`
+	Origin   string         `json:"origin"`
+	Deflated bool           `json:"deflated"`
 }
 
 // An actual stream response body will be made up of one or more of these
 // structs, encoded as JSON and separated by newlines
 type streamResponse struct {
-	ID      int         `json:"id"`
-	Args    url.Values  `json:"args"`
-	Headers http.Header `json:"headers"`
-	Origin  string      `json:"origin"`
-	URL     string      `json:"url"`
+	ID      int            `json:"id"`
+	Args    RequestArgs    `json:"args"`
+	Headers RequestHeaders `json:"headers"`
+	Origin  string         `json:"origin"`
+	URL     string         `json:"url"`
 }
 
 type uuidResponse struct {
@@ -99,6 +122,9 @@ type HTTPBin struct {
 
 	// Default parameter values
 	DefaultParams DefaultParams
+
+	// Delay for api reuest, except /delay/ and /drip
+	ResponseDelay time.Duration
 }
 
 // DefaultParams defines default parameter values
@@ -129,6 +155,9 @@ func (h *HTTPBin) Handler() http.Handler {
 	mux.HandleFunc("/put", methods(h.RequestWithBody, "PUT"))
 	mux.HandleFunc("/patch", methods(h.RequestWithBody, "PATCH"))
 	mux.HandleFunc("/delete", methods(h.RequestWithBody, "DELETE"))
+
+	mux.HandleFunc("/anything", h.RequestWithBody)
+	mux.HandleFunc("/anything/", h.RequestWithBody)
 
 	mux.HandleFunc("/ip", h.IP)
 	mux.HandleFunc("/user-agent", h.UserAgent)
@@ -206,6 +235,9 @@ func (h *HTTPBin) Handler() http.Handler {
 	handler = limitRequestSize(h.MaxBodySize, handler)
 	handler = preflight(handler)
 	handler = autohead(handler)
+	if h.ResponseDelay > 0 {
+		handler = responseDelay(h.ResponseDelay, handler)
+	}
 	if h.Observer != nil {
 		handler = observe(h.Observer, handler)
 	}
@@ -218,6 +250,7 @@ func New(opts ...OptionFunc) *HTTPBin {
 	h := &HTTPBin{
 		MaxBodySize:   DefaultMaxBodySize,
 		MaxDuration:   DefaultMaxDuration,
+		ResponseDelay: DefaultResponseDelay,
 		DefaultParams: DefaultDefaultParams,
 	}
 	for _, opt := range opts {
@@ -255,5 +288,12 @@ func WithMaxDuration(d time.Duration) OptionFunc {
 func WithObserver(o Observer) OptionFunc {
 	return func(h *HTTPBin) {
 		h.Observer = o
+	}
+}
+
+// WithResponseDelay sets the delay time that httbpin delay to respond
+func WithResponseDelay(d time.Duration) OptionFunc {
+	return func(h *HTTPBin) {
+		h.ResponseDelay = d
 	}
 }
