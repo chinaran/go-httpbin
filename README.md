@@ -60,7 +60,7 @@ Docker images are published to [Github Package][github-package]:
 $ docker run -p 8080:80 ghcr.io/chinaran/go-httpbin:1.2-alpine3.13
 
 # Run https server
-$ docker run -e HTTPS_CERT_FILE='/tmp/server.crt' -e HTTPS_KEY_FILE='/tmp/server.key' -p 8080:8080 -v /tmp:/tmp ghcr.io/chinaran/go-httpbin:1.2-alpine3.13
+$ docker run -e HTTPS_CERT_FILE='/tmp/server.crt' -e HTTPS_KEY_FILE='/tmp/server.key' -p 8080:80 -v /tmp:/tmp ghcr.io/chinaran/go-httpbin:1.2-alpine3.13
 ```
 
 The `github.com/mccutchen/go-httpbin/httpbin/v2` package can also be used as a
