@@ -53,7 +53,7 @@ $ openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
 $ go-httpbin -host 127.0.0.1 -port 8081 -https-cert-file ./server.crt -https-key-file ./server.key
 ```
 
-Docker images are published to [Docker Hub][docker-hub]:
+Docker images are published to [Github Package][github-package]:
 
 ```bash
 # Run http server
@@ -156,4 +156,4 @@ make imagepush
 [httpbin-org]: https://httpbin.org/
 [httpbin-repo]: https://github.com/kennethreitz/httpbin
 [ahmet]: https://github.com/ahmetb/go-httpbin
-[docker-hub]: https://hub.docker.com/r/mccutchen/go-httpbin/
+[github-package]: https://github.com/chinaran/go-httpbin/pkgs/container/go-httpbin
