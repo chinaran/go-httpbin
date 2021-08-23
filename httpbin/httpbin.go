@@ -164,9 +164,6 @@ func (h *HTTPBin) Handler() http.Handler {
 	mux.HandleFunc("/anything", h.RequestWithBody)
 	mux.HandleFunc("/anything/", h.RequestWithBody)
 
-	mux.HandleFunc("/anything", h.RequestWithBody)
-	mux.HandleFunc("/anything/", h.RequestWithBody)
-
 	mux.HandleFunc("/ip", h.IP)
 	mux.HandleFunc("/user-agent", h.UserAgent)
 	mux.HandleFunc("/headers", h.Headers)
