@@ -2,9 +2,9 @@ name: Lint
 
 on:
   push:
-    branches: [master] # pushes TO master
+    branches: [main] # pushes TO main
   pull_request:
-    branches: [master] # pull requests AGAINST master
+    branches: [main] # pull requests AGAINST main
 
 jobs:
   golangci:
@@ -12,7 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+      - uses: actions/setup-go@v2
         with:
-          version: v1.39.0
+          go-version: '1.19'
+      - uses: golangci/golangci-lint-action@v3.2.0
+        with:
+          version: v1.50.0

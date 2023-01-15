@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -53,13 +52,23 @@ func getRequestQuery(r *http.Request) map[string]string {
 	return mapSliceToMap(r.URL.Query())
 }
 
-func getOrigin(r *http.Request) string {
-	forwardedFor := r.Header.Get("X-Forwarded-For")
-	if forwardedFor == "" {
-		return r.RemoteAddr
+// getClientIP tries to get a reasonable value for the IP address of the
+// client making the request. Note that this value will likely be trivial to
+// spoof, so do not rely on it for security purposes.
+func getClientIP(r *http.Request) string {
+	// Special case some hosting platforms that provide the value directly.
+	if clientIP := r.Header.Get("Fly-Client-IP"); clientIP != "" {
+		return clientIP
 	}
-	// take the first entry in a comma-separated list of IP addrs
-	return strings.TrimSpace(strings.SplitN(forwardedFor, ",", 2)[0])
+
+	// Try to pull a reasonable value from the X-Forwarded-For header, if
+	// present, by taking the first entry in a comma-separated list of IPs.
+	if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
+		return strings.TrimSpace(strings.SplitN(forwardedFor, ",", 2)[0])
+	}
+
+	// Finally, fall back on the actual remote addr from the request.
+	return r.RemoteAddr
 }
 
 func getURL(r *http.Request) *url.URL {
@@ -94,22 +103,23 @@ func getURL(r *http.Request) *url.URL {
 
 func writeResponse(w http.ResponseWriter, status int, contentType string, body []byte) {
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 	w.WriteHeader(status)
 	w.Write(body)
 }
 
-func writeJSON(w http.ResponseWriter, body []byte, status int) {
-	writeResponse(w, status, jsonContentType, body)
+func mustMarshalJSON(w io.Writer, val interface{}) {
+	encoder := json.NewEncoder(w)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "    ")
+	if err := encoder.Encode(val); err != nil {
+		panic(err.Error())
+	}
 }
 
-func writeIndentJSON(w http.ResponseWriter, v interface{}, status int) {
-	bf := bytes.NewBuffer([]byte{})
-	enc := json.NewEncoder(bf)
-	enc.SetIndent("", "    ")
-	enc.SetEscapeHTML(false)
-	enc.Encode(v)
-	writeResponse(w, status, jsonContentType, bf.Bytes())
+func writeJSON(status int, w http.ResponseWriter, val interface{}) {
+	w.Header().Set("Content-Type", jsonContentType)
+	w.WriteHeader(status)
+	mustMarshalJSON(w, val)
 }
 
 func writeHTML(w http.ResponseWriter, body []byte, status int) {
@@ -129,7 +139,7 @@ func parseBody(w http.ResponseWriter, r *http.Request, resp *bodyResponse) error
 
 	// Always set resp.Data to the incoming request body, in case we don't know
 	// how to handle the content type
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		r.Body.Close()
 		return err
@@ -139,11 +149,19 @@ func parseBody(w http.ResponseWriter, r *http.Request, resp *bodyResponse) error
 	// After reading the body to populate resp.Data, we need to re-wrap it in
 	// an io.Reader for further processing below
 	r.Body.Close()
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	ct := r.Header.Get("Content-Type")
 	switch {
 	case strings.HasPrefix(ct, "application/x-www-form-urlencoded"):
+		// r.ParseForm() does not populate r.PostForm for DELETE or GET requests, but
+		// we need it to for compatibility with the httpbin implementation, so
+		// we trick it with this ugly hack.
+		if r.Method == http.MethodDelete || r.Method == http.MethodGet {
+			originalMethod := r.Method
+			r.Method = http.MethodPost
+			defer func() { r.Method = originalMethod }()
+		}
 		if err := r.ParseForm(); err != nil {
 			return err
 		}

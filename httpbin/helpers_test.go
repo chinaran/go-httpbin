@@ -3,6 +3,7 @@ package httpbin
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ func assertError(t *testing.T, got, expected error) {
 }
 
 func TestParseDuration(t *testing.T) {
-	var okTests = []struct {
+	okTests := []struct {
 		input    string
 		expected time.Duration
 	}{
@@ -50,7 +51,9 @@ func TestParseDuration(t *testing.T) {
 		{"-2.5", -2500 * time.Millisecond},
 	}
 	for _, test := range okTests {
+		test := test
 		t.Run(fmt.Sprintf("ok/%s", test.input), func(t *testing.T) {
+			t.Parallel()
 			result, err := parseDuration(test.input)
 			if err != nil {
 				t.Fatalf("unexpected error parsing duration %v: %s", test.input, err)
@@ -61,7 +64,7 @@ func TestParseDuration(t *testing.T) {
 		})
 	}
 
-	var badTests = []struct {
+	badTests := []struct {
 		input string
 	}{
 		{"foo"},
@@ -71,7 +74,9 @@ func TestParseDuration(t *testing.T) {
 		{"0xFF"},
 	}
 	for _, test := range badTests {
+		test := test
 		t.Run(fmt.Sprintf("bad/%s", test.input), func(t *testing.T) {
+			t.Parallel()
 			_, err := parseDuration(test.input)
 			if err == nil {
 				t.Fatalf("expected error parsing %v", test.input)
@@ -81,11 +86,13 @@ func TestParseDuration(t *testing.T) {
 }
 
 func TestSyntheticByteStream(t *testing.T) {
+	t.Parallel()
 	factory := func(offset int64) byte {
 		return byte(offset)
 	}
 
 	t.Run("read", func(t *testing.T) {
+		t.Parallel()
 		s := newSyntheticByteStream(10, factory)
 
 		// read first half
@@ -111,6 +118,7 @@ func TestSyntheticByteStream(t *testing.T) {
 	})
 
 	t.Run("read into too-large buffer", func(t *testing.T) {
+		t.Parallel()
 		s := newSyntheticByteStream(5, factory)
 		p := make([]byte, 10)
 		count, err := s.Read(p)
@@ -120,6 +128,7 @@ func TestSyntheticByteStream(t *testing.T) {
 	})
 
 	t.Run("seek", func(t *testing.T) {
+		t.Parallel()
 		s := newSyntheticByteStream(100, factory)
 
 		p := make([]byte, 5)
@@ -153,4 +162,56 @@ func TestSyntheticByteStream(t *testing.T) {
 			t.Errorf("Expected \"Seek: invalid offset\", got %#v", err.Error())
 		}
 	})
+}
+
+func Test_getClientIP(t *testing.T) {
+	t.Parallel()
+
+	makeHeaders := func(m map[string]string) http.Header {
+		h := make(http.Header, len(m))
+		for k, v := range m {
+			h.Set(k, v)
+		}
+		return h
+	}
+
+	testCases := map[string]struct {
+		given *http.Request
+		want  string
+	}{
+		"custom platform headers take precedence": {
+			given: &http.Request{
+				Header: makeHeaders(map[string]string{
+					"Fly-Client-IP":   "9.9.9.9",
+					"X-Forwarded-For": "1.1.1.1,2.2.2.2,3.3.3.3",
+				}),
+				RemoteAddr: "0.0.0.0",
+			},
+			want: "9.9.9.9",
+		},
+		"x-forwarded-for is parsed": {
+			given: &http.Request{
+				Header: makeHeaders(map[string]string{
+					"X-Forwarded-For": "1.1.1.1,2.2.2.2,3.3.3.3",
+				}),
+				RemoteAddr: "0.0.0.0",
+			},
+			want: "1.1.1.1",
+		},
+		"remoteaddr is fallback": {
+			given: &http.Request{
+				RemoteAddr: "0.0.0.0",
+			},
+			want: "0.0.0.0",
+		},
+	}
+	for name, tc := range testCases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got := getClientIP(tc.given); got != tc.want {
+				t.Errorf("getClientIP() = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }

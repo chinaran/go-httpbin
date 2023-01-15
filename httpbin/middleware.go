@@ -66,7 +66,7 @@ type headResponseWriter struct {
 }
 
 func (hw *headResponseWriter) Write(b []byte) (int, error) {
-	return 0, nil
+	return len(b), nil
 }
 
 // autohead automatically discards the body of responses to HEAD requests
@@ -124,22 +124,26 @@ func observe(o Observer, h http.Handler) http.Handler {
 		t := time.Now()
 		h.ServeHTTP(mw, r)
 		o(Result{
-			Status:   mw.Status(),
-			Method:   r.Method,
-			URI:      r.URL.RequestURI(),
-			Size:     mw.Size(),
-			Duration: time.Since(t),
+			Status:    mw.Status(),
+			Method:    r.Method,
+			URI:       r.URL.RequestURI(),
+			Size:      mw.Size(),
+			Duration:  time.Since(t),
+			UserAgent: r.Header.Get("User-Agent"),
+			ClientIP:  getClientIP(r),
 		})
 	})
 }
 
 // Result is the result of handling a request, used for instrumentation
 type Result struct {
-	Status   int
-	Method   string
-	URI      string
-	Size     int64
-	Duration time.Duration
+	Status    int
+	Method    string
+	URI       string
+	Size      int64
+	Duration  time.Duration
+	UserAgent string
+	ClientIP  string
 }
 
 // Observer is a function that will be called with the details of a handled
@@ -150,7 +154,7 @@ type Observer func(result Result)
 // format using the given stdlib logger
 func StdLogObserver(l *log.Logger, prefix ...string) Observer {
 	const (
-		logFmt  = `%stime="%-24s"  status=%d  method=%q  uri=%q  size_bytes=%d  duration_ms=%0.02f`
+		logFmt  = `%stime="%-24s"  status=%d  method=%q  uri=%q  size_bytes=%d  duration_ms=%0.02f  user_agent=%q  client_ip=%s`
 		dateFmt = "2006-01-02 15:04:05.9999"
 	)
 	p := ""
@@ -167,6 +171,8 @@ func StdLogObserver(l *log.Logger, prefix ...string) Observer {
 			result.URI,
 			result.Size,
 			result.Duration.Seconds()*1e3, // https://github.com/golang/go/issues/5491#issuecomment-66079585
+			result.UserAgent,
+			result.ClientIP,
 		)
 	}
 }

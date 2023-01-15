@@ -1,7 +1,11 @@
 package main
 
-import "github.com/mccutchen/go-httpbin/v2/cmd/maincmd"
+import (
+	"os"
+
+	"github.com/mccutchen/go-httpbin/v2/httpbin/cmd"
+)
 
 func main() {
-	maincmd.Main()
+	os.Exit(cmd.Main())
 }

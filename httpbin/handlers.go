@@ -7,21 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/mccutchen/go-httpbin/v2/httpbin/assets"
 	"github.com/mccutchen/go-httpbin/v2/httpbin/digest"
 )
-
-var acceptedMediaTypes = []string{
-	"image/webp",
-	"image/svg+xml",
-	"image/jpeg",
-	"image/png",
-	"image/",
-}
 
 func notImplementedHandler(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Not implemented", http.StatusNotImplemented)
@@ -34,29 +27,42 @@ func (h *HTTPBin) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' camo.githubusercontent.com")
-	writeHTML(w, assets.MustAsset("index.html"), http.StatusOK)
+	writeHTML(w, mustStaticAsset("index.html"), http.StatusOK)
 }
 
 // FormsPost renders an HTML form that submits a request to the /post endpoint
 func (h *HTTPBin) FormsPost(w http.ResponseWriter, r *http.Request) {
-	writeHTML(w, assets.MustAsset("forms-post.html"), http.StatusOK)
+	writeHTML(w, mustStaticAsset("forms-post.html"), http.StatusOK)
 }
 
 // UTF8 renders an HTML encoding stress test
 func (h *HTTPBin) UTF8(w http.ResponseWriter, r *http.Request) {
-	writeHTML(w, assets.MustAsset("utf8.html"), http.StatusOK)
+	writeHTML(w, mustStaticAsset("utf8.html"), http.StatusOK)
 }
 
 // Get handles HTTP GET requests
 func (h *HTTPBin) Get(w http.ResponseWriter, r *http.Request) {
-	resp := &getResponse{
+	writeJSON(http.StatusOK, w, &noBodyResponse{
 		Envs:    getEnvs(r),
 		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
-		Origin:  getOrigin(r),
+		Origin:  getClientIP(r),
 		URL:     getURL(r).String(),
+	})
+}
+
+// Anything returns anything that is passed to request.
+func (h *HTTPBin) Anything(w http.ResponseWriter, r *http.Request) {
+	// Short-circuit for HEAD requests, which should be handled like regular
+	// GET requests (where the autohead middleware will take care of discarding
+	// the body)
+	if r.Method == http.MethodHead {
+		h.Get(w, r)
+		return
 	}
-	writeIndentJSON(w, resp, http.StatusOK)
+	// All other requests will be handled the same.  For compatibility with
+	// httpbin, the /anything endpoint even allows GET requests to have bodies.
+	h.RequestWithBody(w, r)
 }
 
 // RequestWithBody handles POST, PUT, and PATCH requests
@@ -65,7 +71,7 @@ func (h *HTTPBin) RequestWithBody(w http.ResponseWriter, r *http.Request) {
 		Envs:    getEnvs(r),
 		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
-		Origin:  getOrigin(r),
+		Origin:  getClientIP(r),
 		URL:     getURL(r).String(),
 	}
 
@@ -75,103 +81,99 @@ func (h *HTTPBin) RequestWithBody(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeIndentJSON(w, resp, http.StatusOK)
+	writeJSON(http.StatusOK, w, resp)
 }
 
 // Gzip returns a gzipped response
 func (h *HTTPBin) Gzip(w http.ResponseWriter, r *http.Request) {
-	resp := &gzipResponse{
+	var (
+		buf bytes.Buffer
+		gzw = gzip.NewWriter(&buf)
+	)
+	mustMarshalJSON(gzw, &noBodyResponse{
+		Envs:    getEnvs(r),
+		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
-		Origin:  getOrigin(r),
+		Origin:  getClientIP(r),
 		Gzipped: true,
-	}
-	body, _ := json.Marshal(resp)
-
-	buf := &bytes.Buffer{}
-	gzw := gzip.NewWriter(buf)
-	gzw.Write(body)
+	})
 	gzw.Close()
 
-	gzBody := buf.Bytes()
-
+	body := buf.Bytes()
 	w.Header().Set("Content-Encoding", "gzip")
-	writeJSON(w, gzBody, http.StatusOK)
+	w.Header().Set("Content-Type", jsonContentType)
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
 }
 
 // Deflate returns a gzipped response
 func (h *HTTPBin) Deflate(w http.ResponseWriter, r *http.Request) {
-	resp := &deflateResponse{
+	var (
+		buf bytes.Buffer
+		zw  = zlib.NewWriter(&buf)
+	)
+	mustMarshalJSON(zw, &noBodyResponse{
+		Envs:     getEnvs(r),
+		Args:     getRequestQuery(r),
 		Headers:  getRequestHeaders(r),
-		Origin:   getOrigin(r),
+		Origin:   getClientIP(r),
 		Deflated: true,
-	}
-	body, _ := json.Marshal(resp)
+	})
+	zw.Close()
 
-	buf := &bytes.Buffer{}
-	w2 := zlib.NewWriter(buf)
-	w2.Write(body)
-	w2.Close()
-
-	compressedBody := buf.Bytes()
-
+	body := buf.Bytes()
 	w.Header().Set("Content-Encoding", "deflate")
-	writeJSON(w, compressedBody, http.StatusOK)
+	w.Header().Set("Content-Type", jsonContentType)
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
 }
 
 // IP echoes the IP address of the incoming request
 func (h *HTTPBin) IP(w http.ResponseWriter, r *http.Request) {
-	resp := &ipResponse{
-		Origin: getOrigin(r),
-	}
-	writeIndentJSON(w, resp, http.StatusOK)
+	writeJSON(http.StatusOK, w, &ipResponse{
+		Origin: getClientIP(r),
+	})
 }
 
 // UserAgent echoes the incoming User-Agent header
 func (h *HTTPBin) UserAgent(w http.ResponseWriter, r *http.Request) {
-	resp := &userAgentResponse{
+	writeJSON(http.StatusOK, w, &userAgentResponse{
 		UserAgent: r.Header.Get("User-Agent"),
-	}
-	writeIndentJSON(w, resp, http.StatusOK)
+	})
 }
 
 // Headers echoes the incoming request headers
 func (h *HTTPBin) Headers(w http.ResponseWriter, r *http.Request) {
-	resp := &headersResponse{
+	writeJSON(http.StatusOK, w, &headersResponse{
 		Headers: getRequestHeaders(r),
-	}
-	writeIndentJSON(w, resp, http.StatusOK)
+	})
 }
 
-// Status responds with the specified status code. TODO: support random choice
-// from multiple, optionally weighted status codes.
-func (h *HTTPBin) Status(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) != 3 {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-	code, err := strconv.Atoi(parts[2])
-	if err != nil {
-		http.Error(w, "Invalid status", http.StatusBadRequest)
-		return
-	}
+type statusCase struct {
+	headers map[string]string
+	body    []byte
+}
 
-	type statusCase struct {
-		headers map[string]string
-		body    []byte
-	}
-
-	redirectHeaders := &statusCase{
+var (
+	statusRedirectHeaders = &statusCase{
 		headers: map[string]string{
 			"Location": "/redirect/1",
 		},
 	}
-	notAcceptableBody, _ := json.Marshal(map[string]interface{}{
-		"message": "Client did not request a supported media type",
-		"accept":  acceptedMediaTypes,
-	})
-
-	http300body := []byte(`<!doctype html>
+	statusNotAcceptableBody = []byte(`{
+  "message": "Client did not request a supported media type",
+  "accept": [
+    "image/webp",
+    "image/svg+xml",
+    "image/jpeg",
+    "image/png",
+    "image/"
+  ]
+}
+`)
+	statusHTTP300body = []byte(`<!doctype html>
 <head>
 <title>Multiple Choices</title>
 </head>
@@ -183,7 +185,7 @@ func (h *HTTPBin) Status(w http.ResponseWriter, r *http.Request) {
 </body>
 </html>`)
 
-	http308body := []byte(`<!doctype html>
+	statusHTTP308Body = []byte(`<!doctype html>
 <head>
 <title>Permanent Redirect</title>
 </head>
@@ -191,20 +193,20 @@ func (h *HTTPBin) Status(w http.ResponseWriter, r *http.Request) {
 </body>
 </html>`)
 
-	specialCases := map[int]*statusCase{
+	statusSpecialCases = map[int]*statusCase{
 		300: {
-			body: http300body,
+			body: statusHTTP300body,
 			headers: map[string]string{
 				"Location": "/image/jpeg",
 			},
 		},
-		301: redirectHeaders,
-		302: redirectHeaders,
-		303: redirectHeaders,
-		305: redirectHeaders,
-		307: redirectHeaders,
+		301: statusRedirectHeaders,
+		302: statusRedirectHeaders,
+		303: statusRedirectHeaders,
+		305: statusRedirectHeaders,
+		307: statusRedirectHeaders,
 		308: {
-			body: http308body,
+			body: statusHTTP308Body,
 			headers: map[string]string{
 				"Location": "/image/jpeg",
 			},
@@ -221,7 +223,7 @@ func (h *HTTPBin) Status(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		406: {
-			body: notAcceptableBody,
+			body: statusNotAcceptableBody,
 			headers: map[string]string{
 				"Content-Type": jsonContentType,
 			},
@@ -238,20 +240,34 @@ func (h *HTTPBin) Status(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
+)
 
-	if specialCase, ok := specialCases[code]; ok {
-		if specialCase.headers != nil {
-			for key, val := range specialCase.headers {
-				w.Header().Set(key, val)
-			}
+// Status responds with the specified status code. TODO: support random choice
+// from multiple, optionally weighted status codes.
+func (h *HTTPBin) Status(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) != 3 {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+	code, err := strconv.Atoi(parts[2])
+	if err != nil {
+		http.Error(w, "Invalid status", http.StatusBadRequest)
+		return
+	}
+
+	if specialCase, ok := statusSpecialCases[code]; ok {
+		for key, val := range specialCase.headers {
+			w.Header().Set(key, val)
 		}
 		w.WriteHeader(code)
 		if specialCase.body != nil {
 			w.Write(specialCase.body)
 		}
-	} else {
-		w.WriteHeader(code)
+		return
 	}
+
+	w.WriteHeader(code)
 }
 
 // Unstable - returns 500, sometimes
@@ -295,11 +311,10 @@ func (h *HTTPBin) ResponseHeaders(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add(k, v)
 		}
 	}
-	body, _ := json.Marshal(args)
 	if contentType := w.Header().Get("Content-Type"); contentType == "" {
 		w.Header().Set("Content-Type", jsonContentType)
 	}
-	w.Write(body)
+	mustMarshalJSON(w, args)
 }
 
 func redirectLocation(r *http.Request, relative bool, n int) string {
@@ -366,13 +381,35 @@ func (h *HTTPBin) AbsoluteRedirect(w http.ResponseWriter, r *http.Request) {
 func (h *HTTPBin) RedirectTo(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
-	url := q.Get("url")
-	if url == "" {
+	inputURL := q.Get("url")
+	if inputURL == "" {
 		http.Error(w, "Missing URL", http.StatusBadRequest)
 		return
 	}
 
-	var err error
+	u, err := url.Parse(inputURL)
+	if err != nil {
+		http.Error(w, "Invalid URL", http.StatusBadRequest)
+		return
+	}
+
+	if u.IsAbs() && len(h.AllowedRedirectDomains) > 0 {
+		if _, ok := h.AllowedRedirectDomains[u.Hostname()]; !ok {
+			domainListItems := make([]string, 0, len(h.AllowedRedirectDomains))
+			for domain := range h.AllowedRedirectDomains {
+				domainListItems = append(domainListItems, fmt.Sprintf("- %s", domain))
+			}
+			sort.Strings(domainListItems)
+			formattedDomains := strings.Join(domainListItems, "\n")
+			msg := fmt.Sprintf(`Forbidden redirect URL. Please be careful with this link.
+
+Allowed redirect destinations:
+%s`, formattedDomains)
+			http.Error(w, msg, http.StatusForbidden)
+			return
+		}
+	}
+
 	statusCode := http.StatusFound
 	rawStatusCode := q.Get("status_code")
 	if rawStatusCode != "" {
@@ -383,7 +420,7 @@ func (h *HTTPBin) RedirectTo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Location", url)
+	w.Header().Set("Location", u.String())
 	w.WriteHeader(statusCode)
 }
 
@@ -393,7 +430,7 @@ func (h *HTTPBin) Cookies(w http.ResponseWriter, r *http.Request) {
 	for _, c := range r.Cookies() {
 		resp[c.Name] = c.Value
 	}
-	writeIndentJSON(w, resp, http.StatusOK)
+	writeJSON(http.StatusOK, w, resp)
 }
 
 // SetCookies sets cookies as specified in query params and redirects to
@@ -447,11 +484,10 @@ func (h *HTTPBin) BasicAuth(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Fake Realm"`)
 	}
 
-	resp := &authResponse{
+	writeJSON(status, w, authResponse{
 		Authorized: authorized,
 		User:       givenUser,
-	}
-	writeIndentJSON(w, resp, status)
+	})
 }
 
 // HiddenBasicAuth requires HTTP Basic authentication but returns a status of
@@ -473,11 +509,10 @@ func (h *HTTPBin) HiddenBasicAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := &authResponse{
+	writeJSON(http.StatusOK, w, authResponse{
 		Authorized: authorized,
 		User:       givenUser,
-	}
-	writeIndentJSON(w, resp, http.StatusOK)
+	})
 }
 
 // Stream responds with max(n, 100) lines of JSON-encoded request data.
@@ -500,18 +535,19 @@ func (h *HTTPBin) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &streamResponse{
+		Envs:    getEnvs(r),
 		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
-		Origin:  getOrigin(r),
+		Origin:  getClientIP(r),
 		URL:     getURL(r).String(),
 	}
 
 	f := w.(http.Flusher)
 	for i := 0; i < n; i++ {
 		resp.ID = i
+		// Call json.Marshal directly to avoid pretty printing
 		line, _ := json.Marshal(resp)
-		w.Write(line)
-		w.Write([]byte("\n"))
+		w.Write(append(line, '\n'))
 		f.Flush()
 	}
 }
@@ -605,8 +641,9 @@ func (h *HTTPBin) Drip(w http.ResponseWriter, r *http.Request) {
 	case <-time.After(delay):
 	}
 
+	b := []byte{'*'}
 	for i := int64(0); i < numBytes; i++ {
-		w.Write([]byte("*"))
+		w.Write(b)
 		flusher.Flush()
 
 		select {
@@ -651,7 +688,7 @@ func (h *HTTPBin) Range(w http.ResponseWriter, r *http.Request) {
 
 // HTML renders a basic HTML page
 func (h *HTTPBin) HTML(w http.ResponseWriter, r *http.Request) {
-	writeHTML(w, assets.MustAsset("moby.html"), http.StatusOK)
+	writeHTML(w, mustStaticAsset("moby.html"), http.StatusOK)
 }
 
 // Robots renders a basic robots.txt file
@@ -699,7 +736,7 @@ func (h *HTTPBin) CacheControl(w http.ResponseWriter, r *http.Request) {
 	h.Get(w, r)
 }
 
-// ETag assumes the resource has the given etag and response to If-None-Match
+// ETag assumes the resource has the given etag and responds to If-None-Match
 // and If-Match headers appropriately.
 func (h *HTTPBin) ETag(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
@@ -711,19 +748,18 @@ func (h *HTTPBin) ETag(w http.ResponseWriter, r *http.Request) {
 	etag := parts[2]
 	w.Header().Set("ETag", fmt.Sprintf(`"%s"`, etag))
 
-	// TODO: This mostly duplicates the work of Get() above, should this be
-	// pulled into a little helper?
-	resp := &getResponse{
+	var buf bytes.Buffer
+	mustMarshalJSON(&buf, noBodyResponse{
+		Envs:    getEnvs(r),
 		Args:    getRequestQuery(r),
 		Headers: getRequestHeaders(r),
-		Origin:  getOrigin(r),
+		Origin:  getClientIP(r),
 		URL:     getURL(r).String(),
-	}
-	body, _ := json.Marshal(resp)
+	})
 
 	// Let http.ServeContent deal with If-None-Match and If-Match headers:
 	// https://golang.org/pkg/net/http/#ServeContent
-	http.ServeContent(w, r, "response.json", time.Now(), bytes.NewReader(body))
+	http.ServeContent(w, r, "response.json", time.Now(), bytes.NewReader(buf.Bytes()))
 }
 
 // Bytes returns N random bytes generated with an optional seed
@@ -886,7 +922,7 @@ func (h *HTTPBin) Image(w http.ResponseWriter, r *http.Request) {
 // doImage responds with a specific kind of image, if there is an image asset
 // of the given kind.
 func doImage(w http.ResponseWriter, kind string) {
-	img, err := assets.Asset("image." + kind)
+	img, err := staticAsset("image." + kind)
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 	}
@@ -899,7 +935,7 @@ func doImage(w http.ResponseWriter, kind string) {
 
 // XML responds with an XML document
 func (h *HTTPBin) XML(w http.ResponseWriter, r *http.Request) {
-	writeResponse(w, http.StatusOK, "application/xml", assets.MustAsset("sample.xml"))
+	writeResponse(w, http.StatusOK, "application/xml", mustStaticAsset("sample.xml"))
 }
 
 // DigestAuth handles a simple implementation of HTTP Digest Authentication,
@@ -945,19 +981,17 @@ func (h *HTTPBin) DigestAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, _ := json.Marshal(&authResponse{
+	writeJSON(http.StatusOK, w, authResponse{
 		Authorized: true,
 		User:       user,
 	})
-	writeJSON(w, resp, http.StatusOK)
 }
 
 // UUID - responds with a generated UUID
 func (h *HTTPBin) UUID(w http.ResponseWriter, r *http.Request) {
-	resp, _ := json.Marshal(&uuidResponse{
+	writeJSON(http.StatusOK, w, uuidResponse{
 		UUID: uuidv4(),
 	})
-	writeJSON(w, resp, http.StatusOK)
 }
 
 // Base64 - encodes/decodes input data
@@ -981,12 +1015,14 @@ func (h *HTTPBin) Base64(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("%s failed: %s", b.operation, base64Error), http.StatusBadRequest)
 		return
 	}
-	writeResponse(w, http.StatusOK, "text/html", result)
+	writeResponse(w, http.StatusOK, "text/plain", result)
 }
 
 // JSON - returns a sample json
 func (h *HTTPBin) JSON(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, assets.MustAsset("sample.json"), http.StatusOK)
+	w.Header().Set("Content-Type", jsonContentType)
+	w.WriteHeader(http.StatusOK)
+	w.Write(mustStaticAsset("sample.json"))
 }
 
 // Bearer - Prompts the user for authorization using bearer authentication.
@@ -998,9 +1034,15 @@ func (h *HTTPBin) Bearer(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	resp := &bearerResponse{
+	writeJSON(http.StatusOK, w, bearerResponse{
 		Authenticated: true,
 		Token:         tokenFields[1],
-	}
-	writeIndentJSON(w, resp, http.StatusOK)
+	})
+}
+
+// Hostname - returns the hostname.
+func (h *HTTPBin) Hostname(w http.ResponseWriter, r *http.Request) {
+	writeJSON(http.StatusOK, w, hostnameResponse{
+		Hostname: h.hostname,
+	})
 }
