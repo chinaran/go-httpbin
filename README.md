@@ -93,7 +93,7 @@ variables (or a combination of the two):
 | `-max-body-size`            | `MAX_BODY_SIZE`            | Maximum size of request or response, in bytes                               | 1048576   |
 | `-max-duration`             | `MAX_DURATION`             | Maximum duration a response may take                                        | 10s       |
 | `-port`                     | `PORT`                     | Port to listen on                                                           | 8080      |
-| `-response-delay`           | `RESPONSE_DELAY`           | Duration a response may take                                                | 10ms      |
+| `-response-delay`           | `RESPONSE_DELAY`           | Duration a response may take                                                | 0ms       |
 | `-use-real-hostname`        | `USE_REAL_HOSTNAME`        | Expose real hostname as reported by os.Hostname() in the /hostname endpoint | false     |
 
 **Notes:**

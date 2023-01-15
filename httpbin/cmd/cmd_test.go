@@ -29,6 +29,8 @@ const usage = `Usage of go-httpbin:
     	Maximum duration a response may take (default 10s)
   -port int
     	Port to listen on (default 8080)
+  -response-delay duration
+    	duration a response may take
   -use-real-hostname
     	Expose value of os.Hostname() in the /hostname endpoint instead of dummy value
 `

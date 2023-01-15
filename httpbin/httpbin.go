@@ -9,7 +9,7 @@ import (
 const (
 	DefaultMaxBodySize   int64 = 1024 * 1024
 	DefaultMaxDuration         = 10 * time.Second
-	DefaultResponseDelay       = 10 * time.Millisecond
+	DefaultResponseDelay       = 0
 	DefaultHostname            = "go-httpbin"
 )
 

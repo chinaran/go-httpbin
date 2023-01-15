@@ -68,6 +68,7 @@ func mainImpl(args []string, getEnv func(string) string, getHostname func() (str
 	opts := []httpbin.OptionFunc{
 		httpbin.WithMaxBodySize(cfg.MaxBodySize),
 		httpbin.WithMaxDuration(cfg.MaxDuration),
+		httpbin.WithResponseDelay(cfg.ResponseDelay),
 		httpbin.WithObserver(httpbin.StdLogObserver(logger)),
 	}
 	if cfg.RealHostname != "" {
@@ -102,6 +103,7 @@ type config struct {
 	ListenPort             int
 	MaxBodySize            int64
 	MaxDuration            time.Duration
+	ResponseDelay          time.Duration
 	RealHostname           string
 	TLSCertFile            string
 	TLSKeyFile             string
@@ -134,6 +136,7 @@ func loadConfig(args []string, getEnv func(string) string, getHostname func() (s
 	fs := flag.NewFlagSet("go-httpbin", flag.ContinueOnError)
 	fs.BoolVar(&cfg.rawUseRealHostname, "use-real-hostname", false, "Expose value of os.Hostname() in the /hostname endpoint instead of dummy value")
 	fs.DurationVar(&cfg.MaxDuration, "max-duration", httpbin.DefaultMaxDuration, "Maximum duration a response may take")
+	fs.DurationVar(&cfg.ResponseDelay, "response-delay", httpbin.DefaultResponseDelay, "duration a response may take")
 	fs.Int64Var(&cfg.MaxBodySize, "max-body-size", httpbin.DefaultMaxBodySize, "Maximum size of request or response, in bytes")
 	fs.IntVar(&cfg.ListenPort, "port", defaultListenPort, "Port to listen on")
 	fs.StringVar(&cfg.rawAllowedRedirectDomains, "allowed-redirect-domains", "", "Comma-separated list of domains the /redirect-to endpoint will allow")
@@ -184,6 +187,12 @@ func loadConfig(args []string, getEnv func(string) string, getHostname func() (s
 		cfg.MaxDuration, err = time.ParseDuration(getEnv("MAX_DURATION"))
 		if err != nil {
 			return nil, configErr("invalid value %#v for env var MAX_DURATION: parse error", getEnv("MAX_DURATION"))
+		}
+	}
+	if cfg.ResponseDelay == httpbin.DefaultResponseDelay && os.Getenv("RESPONSE_DELAY") != "" {
+		cfg.ResponseDelay, err = time.ParseDuration(os.Getenv("RESPONSE_DELAY"))
+		if err != nil {
+			return nil, configErr("invalid value %#v for env var RESPONSE_DELAY: parse error", getEnv("RESPONSE_DELAY"))
 		}
 	}
 	if cfg.ListenHost == defaultListenHost && getEnv("HOST") != "" {
