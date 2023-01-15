@@ -21,9 +21,9 @@ Docker images are published to [Docker Hub][docker-hub]:
 
 ```bash
 # Run http server
-$ docker run -p 8080:80 ghcr.io/chinaran/go-httpbin:1.2-alpine3.13
+$ docker run --rm -p 8080:80 ghcr.io/chinaran/go-httpbin:1.3-alpine3.17
 # Run https server
-$ docker run -e HTTPS_CERT_FILE='/tmp/server.crt' -e HTTPS_KEY_FILE='/tmp/server.key' -p 8080:80 -v /tmp:/tmp ghcr.io/chinaran/go-httpbin:1.2-alpine3.13
+$ docker run --rm -e HTTPS_CERT_FILE='/tmp/server.crt' -e HTTPS_KEY_FILE='/tmp/server.key' -p 8080:80 -v /tmp:/tmp ghcr.io/chinaran/go-httpbin:1.3-alpine3.17
 ```
 
 ### Standalone binary
