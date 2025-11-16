@@ -1,5 +1,6 @@
-```bash
+测试步骤：
 
+```bash
 # 创建输出目录
 mkdir -p packages
 
