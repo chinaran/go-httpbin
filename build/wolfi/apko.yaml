@@ -1,0 +1,33 @@
+contents:
+  keyring:
+    - '/work/melange.rsa.pub'
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+    - '@local /work/packages'  # 本地 melange 构建的 APK 包路径
+  packages:
+    - wolfi-baselayout
+    - ca-certificates-bundle
+    - tzdata
+    - curl
+    - go-httpbin@local  # 从本地 melange 构建安装
+    - busybox  # 用于调试，生产环境可移除
+
+accounts:
+  groups:
+    - groupname: go-httpbin
+      gid: 65532
+  users:
+    - username: go-httpbin
+      uid: 65532
+      gid: 65532
+  run-as: 65532  # 以非 root 用户运行
+
+entrypoint:
+  command: /usr/bin/go-httpbin
+
+archs:
+  - amd64
+  # - aarch64
+
+work-dir: /home/go-httpbin

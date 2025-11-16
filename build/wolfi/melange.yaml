@@ -1,0 +1,49 @@
+package:
+  name: go-httpbin
+  version: 1.4.0
+  epoch: 0
+  description: "A golang port of httpbin"
+  copyright:
+    - license: MIT
+
+environment:
+  contents:
+    repositories:
+      - https://packages.wolfi.dev/os
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    packages:
+      - wolfi-base
+      - busybox
+      - build-base
+      - ca-certificates-bundle
+      - go-1.25
+
+pipeline:
+  - uses: git-checkout
+    with:
+      repository: https://github.com/chinaran/go-httpbin
+      branch: master
+      # 如果项目有 tag，可以使用 tag 代替 branch
+
+  - runs: |
+      export GOPROXY=https://proxy.golang.org,direct
+      
+      mkdir -p dist
+      
+      CGO_ENABLED=0 go build \
+        -ldflags="-w -s" \
+        -o dist/go-httpbin \
+        ./cmd/go-httpbin
+
+  - runs: |
+      # 安装二进制到系统路径
+      install -Dm755 dist/go-httpbin "${{targets.destdir}}/usr/bin/go-httpbin"
+      
+      # 创建非 root 用户（与 distroless 兼容）
+      # 65532 是 distroless 使用的非 root 用户/组 ID
+      # mkdir -p "${{targets.destdir}}/etc"
+      # echo "go-httpbin:x:65532:65532::/home/go-httpbin:/bin/false" > "${{targets.destdir}}/etc/passwd"
+      # echo "go-httpbin:x:65532:" > "${{targets.destdir}}/etc/group"
+
+  - uses: strip
