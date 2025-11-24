@@ -15,7 +15,7 @@ environment:
     packages:
       - wolfi-base
       - busybox
-      - build-base
+      # - build-base
       - ca-certificates-bundle
       - go-1.25
 
